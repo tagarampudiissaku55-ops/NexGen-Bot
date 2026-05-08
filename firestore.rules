@@ -1,0 +1,58 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Chat Sessions
+    match /chat_sessions/{sessionId} {
+      function isValidSession(data) {
+        return data.keys().hasAll(['userId', 'startedAt']) &&
+               data.keys().size() <= 4 &&
+               data.userId is string &&
+               data.userId == request.auth.uid &&
+               data.startedAt is timestamp;
+      }
+
+      allow get: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidSession(request.resource.data) && isValidId(sessionId);
+      allow update: if isSignedIn() && 
+                    resource.data.userId == request.auth.uid && 
+                    isValidSession(request.resource.data) &&
+                    request.resource.data.userId == resource.data.userId &&
+                    request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastMessage', 'lastUpdatedAt']);
+      
+      // Messages sub-collection
+      match /messages/{messageId} {
+        function isValidMessage(data) {
+          return data.keys().hasAll(['text', 'role', 'timestamp']) &&
+                 data.keys().size() == 3 &&
+                 data.text is string && data.text.size() <= 5000 &&
+                 data.role in ['user', 'model'] &&
+                 data.timestamp is timestamp;
+        }
+
+        allow list: if isSignedIn() && get(/databases/$(database)/documents/chat_sessions/$(sessionId)).data.userId == request.auth.uid;
+        allow create: if isSignedIn() && 
+                      get(/databases/$(database)/documents/chat_sessions/$(sessionId)).data.userId == request.auth.uid &&
+                      isValidMessage(request.resource.data) &&
+                      isValidId(messageId);
+      }
+    }
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "entities": {
+    "ChatSession": {
+      "title": "Chat Session",
+      "description": "Represents a single chat conversation session.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "startedAt": { "type": "string", "format": "date-time" },
+        "lastMessage": { "type": "string" }
+      },
+      "required": ["userId", "startedAt"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "A single message within a chat session.",
+      "type": "object",
+      "properties": {
+        "text": { "type": "string" },
+        "role": { "type": "string", "enum": ["user", "model"] },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["text", "role", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/chat_sessions/{sessionId}": {
+      "schema": "ChatSession",
+      "description": "Collection of all chat sessions."
+    },
+    "/chat_sessions/{sessionId}/messages/{messageId}": {
+      "schema": "Message",
+      "description": "Sub-collection of messages for a specific session."
+    }
+  }
+}
